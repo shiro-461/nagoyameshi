@@ -15,36 +15,38 @@ import com.example.nagoyameshi.service.RestaurantService;
 
 @Controller
 public class HomeController {
-    private final RestaurantService restaurantService;
-    private final CategoryService categoryService;
+	private final RestaurantService restaurantService;
+	private final CategoryService categoryService;
 
-    public HomeController(RestaurantService restaurantService, CategoryService categoryService) {
-        this.restaurantService = restaurantService;
-        this.categoryService = categoryService;
-    }
-    
-    @GetMapping("/")
-    public String index(Model model) {
-        Page<Restaurant> highlyRatedRestaurants = restaurantService.findAllRestaurants(PageRequest.of(0, 6));
-        Page<Restaurant> newRestaurants = restaurantService.findAllRestaurantsByOrderByCreatedAtDesc(PageRequest.of(0, 6));
-        Category washoku = categoryService.findFirstCategoryByName("和食");
-        Category udon = categoryService.findFirstCategoryByName("うどん");
-        Category don = categoryService.findFirstCategoryByName("丼物");
-        Category ramen = categoryService.findFirstCategoryByName("ラーメン");
-        Category oden = categoryService.findFirstCategoryByName("おでん");
-        Category fried = categoryService.findFirstCategoryByName("揚げ物");
-        List<Category> categories = categoryService.findAllCategories();
+	public HomeController(RestaurantService restaurantService, CategoryService categoryService) {
+		this.restaurantService = restaurantService;
+		this.categoryService = categoryService;
+	}
 
-        model.addAttribute("highlyRatedRestaurants", highlyRatedRestaurants);
-        model.addAttribute("newRestaurants", newRestaurants);
-        model.addAttribute("washoku", washoku);
-        model.addAttribute("udon", udon);
-        model.addAttribute("don", don);
-        model.addAttribute("ramen", ramen);
-        model.addAttribute("oden", oden);
-        model.addAttribute("fried", fried);
-        model.addAttribute("categories", categories);        
-        
-        return "index";
-    }
+	@GetMapping("/")
+	public String index(Model model) {
+		Page<Restaurant> highlyRatedRestaurants = restaurantService
+				.findAllRestaurantsByOrderByAverageScoreDesc(PageRequest.of(0, 6));
+		Page<Restaurant> newRestaurants = restaurantService
+				.findAllRestaurantsByOrderByCreatedAtDesc(PageRequest.of(0, 6));
+		Category washoku = categoryService.findFirstCategoryByName("和食");
+		Category udon = categoryService.findFirstCategoryByName("うどん");
+		Category don = categoryService.findFirstCategoryByName("丼物");
+		Category ramen = categoryService.findFirstCategoryByName("ラーメン");
+		Category oden = categoryService.findFirstCategoryByName("おでん");
+		Category fried = categoryService.findFirstCategoryByName("揚げ物");
+		List<Category> categories = categoryService.findAllCategories();
+
+		model.addAttribute("highlyRatedRestaurants", highlyRatedRestaurants);
+		model.addAttribute("newRestaurants", newRestaurants);
+		model.addAttribute("washoku", washoku);
+		model.addAttribute("udon", udon);
+		model.addAttribute("don", don);
+		model.addAttribute("ramen", ramen);
+		model.addAttribute("oden", oden);
+		model.addAttribute("fried", fried);
+		model.addAttribute("categories", categories);
+
+		return "index";
+	}
 }
