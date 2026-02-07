@@ -15,28 +15,50 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 public class RestaurantControllerTest {
-   @Autowired
-   private MockMvc mockMvc;
+	@Autowired
+	private MockMvc mockMvc;
 
-   @Test
-   public void 未ログインの場合は会員用の店舗一覧ページが正しく表示される() throws Exception {
-       mockMvc.perform(get("/restaurants"))
-              .andExpect(status().isOk())
-              .andExpect(view().name("restaurants/index"));
-   }
+	@Test
+	public void 未ログインの場合は会員用の店舗一覧ページが正しく表示される() throws Exception {
+		mockMvc.perform(get("/restaurants"))
+				.andExpect(status().isOk())
+				.andExpect(view().name("restaurants/index"));
+	}
 
-   @Test
-   @WithUserDetails("taro.samurai@example.com")
-   public void 一般ユーザーとしてログイン済みの場合は会員用の店舗一覧ページが正しく表示される() throws Exception {
-       mockMvc.perform(get("/restaurants"))
-              .andExpect(status().isOk())
-              .andExpect(view().name("restaurants/index"));
-   }
+	@Test
+	@WithUserDetails("taro.samurai@example.com")
+	public void 一般ユーザーとしてログイン済みの場合は会員用の店舗一覧ページが正しく表示される() throws Exception {
+		mockMvc.perform(get("/restaurants"))
+				.andExpect(status().isOk())
+				.andExpect(view().name("restaurants/index"));
+	}
 
-   @Test
-   @WithUserDetails("hanako.samurai@example.com")
-   public void 管理者としてログイン済みの場合は会員用の店舗一覧ページが表示されずに403エラーが発生する() throws Exception {
-       mockMvc.perform(get("/restaurants"))
-              .andExpect(status().isForbidden());
-   }
+	@Test
+	@WithUserDetails("hanako.samurai@example.com")
+	public void 管理者としてログイン済みの場合は会員用の店舗一覧ページが表示されずに403エラーが発生する() throws Exception {
+		mockMvc.perform(get("/restaurants"))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	public void 未ログインの場合は会員用の店舗詳細ページが正しく表示される() throws Exception {
+		mockMvc.perform(get("/restaurants/1"))
+				.andExpect(status().isOk())
+				.andExpect(view().name("restaurants/show"));
+	}
+
+	@Test
+	@WithUserDetails("taro.samurai@example.com")
+	public void 一般ユーザーとしてログイン済みの場合は会員用の店舗詳細ページが正しく表示される() throws Exception {
+		mockMvc.perform(get("/restaurants/1"))
+				.andExpect(status().isOk())
+				.andExpect(view().name("restaurants/show"));
+	}
+
+	@Test
+	@WithUserDetails("hanako.samurai@example.com")
+	public void 管理者としてログイン済みの場合は会員用の店舗詳細ページが表示されずに403エラーが発生する() throws Exception {
+		mockMvc.perform(get("/restaurants/1"))
+				.andExpect(status().isForbidden());
+	}
 }
