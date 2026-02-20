@@ -1,0 +1,408 @@
+[33mcommit 2ed947acb9842e0ea5c6eb25f541187af9b96591[m[33m ([m[1;36mHEAD[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: shiro-461 <itouhi5656@gmail.com>
+Date:   Sat Jan 17 01:13:22 2026 +0900
+
+    Add email authentication
+
+[1mdiff --git a/src/main/java/com/example/nagoyameshi/controller/AuthController.java b/src/main/java/com/example/nagoyameshi/controller/AuthController.java[m
+[1mindex d17a752..e69cb6b 100644[m
+[1m--- a/src/main/java/com/example/nagoyameshi/controller/AuthController.java[m
+[1m+++ b/src/main/java/com/example/nagoyameshi/controller/AuthController.java[m
+[36m@@ -8,57 +8,89 @@[m [mimport org.springframework.validation.annotation.Validated;[m
+ import org.springframework.web.bind.annotation.GetMapping;[m
+ import org.springframework.web.bind.annotation.ModelAttribute;[m
+ import org.springframework.web.bind.annotation.PostMapping;[m
+[32m+[m[32mimport org.springframework.web.bind.annotation.RequestParam;[m
+ import org.springframework.web.servlet.mvc.support.RedirectAttributes;[m
+ [m
+[32m+[m[32mimport com.example.nagoyameshi.entity.User;[m
+[32m+[m[32mimport com.example.nagoyameshi.entity.VerificationToken;[m
+[32m+[m[32mimport com.example.nagoyameshi.event.SignupEventPublisher;[m
+ import com.example.nagoyameshi.form.SignupForm;[m
+ import com.example.nagoyameshi.service.UserService;[m
+[32m+[m[32mimport com.example.nagoyameshi.service.VerificationTokenService;[m
+[32m+[m
+[32m+[m[32mimport jakarta.servlet.http.HttpServletRequest;[m
+ [m
+ @Controller[m
+ public class AuthController {[m
+[31m-   private final UserService userService;[m
+[31m-[m
+[31m-   public AuthController(UserService userService) {[m
+[31m-       this.userService = userService;[m
+[31m-   }[m
+[31m-[m
+[31m-   @GetMapping("/login")[m
+[31m-   public String login() {[m
+[31m-       return "auth/login";[m
+[31m-   }[m
+[31m-[m
+[31m-   @GetMapping("/signup")[m
+[31m-   public String signup(Model model) {[m
+[31m-       model.addAttribute("signupForm", new SignupForm());[m
+[31m-       return "auth/signup";[m
+[31m-   }[m
+[31m-[m
+[31m-   @PostMapping("/signup")[m
+[31m-   public String signup(@ModelAttribute @Validated SignupForm signupForm,[m
+[31m-                        BindingResult bindingResult,[m
+[31m-                        RedirectAttributes redirectAttributes,[m
+[31m-                        Model model)[m
+[31m-   {[m
+[31m-       // メールアドレスが登録済みであれば、BindingResultオブジェクトにエラー内容を追加する[m
+[31m-       if (userService.isEmailRegistered(signupForm.getEmail())) {[m
+[31m-           FieldError fieldError = new FieldError(bindingResult.getObjectName(), "email", "すでに登録済みのメールアドレスです。");[m
+[31m-           bindingResult.addError(fieldError);[m
+[31m-       }[m
+[31m-[m
+[31m-       // パスワードとパスワード（確認用）の入力値が一致しなければ、BindingResultオブジェクトにエラー内容を追加する[m
+[31m-       if (!userService.isSamePassword(signupForm.getPassword(), signupForm.getPasswordConfirmation())) {[m
+[31m-           FieldError fieldError = new FieldError(bindingResult.getObjectName(), "password", "パスワードが一致しません。");[m
+[31m-           bindingResult.addError(fieldError);[m
+[31m-       }[m
+[31m-[m
+[31m-       if (bindingResult.hasErrors()) {[m
+[31m-           model.addAttribute("signupForm", signupForm);[m
+[31m-[m
+[31m-           return "auth/signup";[m
+[31m-       }[m
+[31m-[m
+[31m-       userService.createUser(signupForm);[m
+[31m-       redirectAttributes.addFlashAttribute("successMessage", "会員登録が完了しました。");[m
+[31m-[m
+[31m-       return "redirect:/";[m
+[31m-   }[m
+[32m+[m	[32mprivate final UserService userService;[m
+[32m+[m	[32mprivate final SignupEventPublisher signupEventPublisher;[m
+[32m+[m	[32mprivate final VerificationTokenService verificationTokenService;[m
+[32m+[m
+[32m+[m	[32mpublic AuthController(UserService userService, SignupEventPublisher signupEventPublisher,[m
+[32m+[m			[32mVerificationTokenService verificationTokenService) {[m
+[32m+[m		[32mthis.userService = userService;[m
+[32m+[m		[32mthis.signupEventPublisher = signupEventPublisher;[m
+[32m+[m		[32mthis.verificationTokenService = verificationTokenService;[m
+[32m+[m	[32m}[m
+[32m+[m
+[32m+[m	[32m@GetMapping("/login")[m
+[32m+[m	[32mpublic String login() {[m
+[32m+[m		[32mreturn "auth/login";[m
+[32m+[m	[32m}[m
+[32m+[m
+[32m+[m	[32m@GetMapping("/signup")[m
+[32m+[m	[32mpublic String signup(Model model) {[m
+[32m+[m		[32mmodel.addAttribute("signupForm", new SignupForm());[m
+[32m+[m		[32mreturn "auth/signup";[m
+[32m+[m	[32m}[m
+[32m+[m
+[32m+[m	[32m@PostMapping("/signup")[m
+[32m+[m	[32mpublic String signup(@ModelAttribute @Validated SignupForm signupForm,[m
+[32m+[m			[32mBindingResult bindingResult,[m
+[32m+[m			[32mRedirectAttributes redirectAttributes,[m
+[32m+[m			[32mHttpServletRequest httpServletRequest,[m
+[32m+[m			[32mModel model) {[m
+[32m+[m		[32m// メールアドレスが登録済みであれば、BindingResultオブジェクトにエラー内容を追加する[m
+[32m+[m		[32mif (userService.isEmailRegistered(signupForm.getEmail())) {[m
+[32m+[m			[32mFieldError fieldError = new FieldError(bindingResult.getObjectName(), "email", "すでに登録済みのメールアドレスです。");[m
+[32m+[m			[32mbindingResult.addError(fieldError);[m
+[32m+[m		[32m}[m
+[32m+[m
+[32m+[m		[32m// パスワードとパスワード（確認用）の入力値が一致しなければ、BindingResultオブジェクトにエラー内容を追加する[m
+[32m+[m		[32mif (!userService.isSamePassword(signupForm.getPassword(), signupForm.getPasswordConfirmation())) {[m
+[32m+[m			[32mFieldError fieldError = new FieldError(bindingResult.getObjectName(), "password", "パスワードが一致しません。");[m
+[32m+[m			[32mbindingResult.addError(fieldError);[m
+[32m+[m		[32m}[m
+[32m+[m
+[32m+[m		[32mif (bindingResult.hasErrors()) {[m
+[32m+[m			[32mmodel.addAttribute("signupForm", signupForm);[m
+[32m+[m
+[32m+[m			[32mreturn "auth/signup";[m
+[32m+[m		[32m}[m
+[32m+[m
+[32m+[m		[32mUser createdUser = userService.createUser(signupForm);[m
+[32m+[m		[32mString requestUrl = new String(httpServletRequest.getRequestURL());[m
+[32m+[m		[32msignupEventPublisher.publishSignupEvent(createdUser, requestUrl);[m
+[32m+[m		[32mredirectAttributes.addFlashAttribute("successMessage",[m
+[32m+[m				[32m"ご入力いただいたメールアドレスに認証メールを送信しました。メールに記載されているリンクをクリックし、会員登録を完了してください。");[m
+[32m+[m
+[32m+[m		[32mreturn "redirect:/";[m
+[32m+[m	[32m}[m
+[32m+[m
+[32m+[m	[32m@GetMapping("/signup/verify")[m
+[32m+[m	[32mpublic String verify(@RequestParam(name = "token") String token, Model model) {[m
+[32m+[m		[32mVerificationToken verificationToken = verificationTokenService.findVerificationTokenByToken(token);[m
+[32m+[m
+[32m+[m		[32mif (verificationToken != null) {[m
+[32m+[m			[32mUser user = verificationToken.getUser();[m
+[32m+[m			[32muserService.enableUser(user);[m
+[32m+[m			[32mString successMessage = "会員登録が完了しました。";[m
+[32m+[m			[32mmodel.addAttribute("successMessage", successMessage);[m
+[32m+[m		[32m} else {[m
+[32m+[m			[32mString errorMessage = "トークンが無効です。";[m
+[32m+[m			[32mmodel.addAttribute("errorMessage", errorMessage);[m
+[32m+[m		[32m}[m
+[32m+[m
+[32m+[m		[32mreturn "auth/verify";[m
+[32m+[m	[32m}[m
+ }[m
+\ No newline at end of file[m
+[1mdiff --git a/src/main/java/com/example/nagoyameshi/entity/VerificationToken.java b/src/main/java/com/example/nagoyameshi/entity/VerificationToken.java[m
+[1mnew file mode 100644[m
+[1mindex 0000000..3bb6ae0[m
+[1m--- /dev/null[m
+[1m+++ b/src/main/java/com/example/nagoyameshi/entity/VerificationToken.java[m
+[36m@@ -0,0 +1,36 @@[m
+[32m+[m[32mpackage com.example.nagoyameshi.entity;[m
+[32m+[m
+[32m+[m[32mimport java.sql.Timestamp;[m
+[32m+[m
+[32m+[m[32mimport jakarta.persistence.Column;[m
+[32m+[m[32mimport jakarta.persistence.Entity;[m
+[32m+[m[32mimport jakarta.persistence.GeneratedValue;[m
+[32m+[m[32mimport jakarta.persistence.GenerationType;[m
+[32m+[m[32mimport jakarta.persistence.Id;[m
+[32m+[m[32mimport jakarta.persistence.JoinColumn;[m
+[32m+[m[32mimport jakarta.persistence.OneToOne;[m
+[32m+[m[32mimport jakarta.persistence.Table;[m
+[32m+[m[32mimport lombok.Data;[m
+[32m+[m
+[32m+[m[32m@Entity[m
+[32m+[m[32m@Table(name = "verification_tokens")[m
+[32m+[m[32m@Data[m
+[32m+[m[32mpublic class VerificationToken {[m
+[32m+[m	[32m@Id[m
+[32m+[m	[32m@GeneratedValue(strategy = GenerationType.IDENTITY)[m
+[32m+[m	[32m@Column(name = "id")[m
+[32m+[m	[32mprivate Integer id;[m
+[32m+[m
+[32m+[m	[32m@OneToOne[m
+[32m+[m	[32m@JoinColumn(name = "user_id")[m
+[32m+[m	[32mprivate User user;[m
+[32m+[m
+[32m+[m	[32m@Column(name = "token")[m
+[32m+[m	[32mprivate String token;[m
+[32m+[m
+[32m+[m	[32m@Column(name = "created_at", insertable = false, updatable = false)[m
+[32m+[m	[32mprivate Timestamp createdAt;[m
+[32m+[m
+[32m+[m	[32m@Column(name = "updated_at", insertable = false, updatable = false)[m
+[32m+[m	[32mprivate Timestamp updatedAt;[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/src/main/java/com/example/nagoyameshi/event/SignupEvent.java b/src/main/java/com/example/nagoyameshi/event/SignupEvent.java[m
+[1mnew file mode 100644[m
+[1mindex 0000000..92fbb2e[m
+[1m--- /dev/null[m
+[1m+++ b/src/main/java/com/example/nagoyameshi/event/SignupEvent.java[m
+[36m@@ -0,0 +1,20 @@[m
+[32m+[m[32mpackage com.example.nagoyameshi.event;[m
+[32m+[m
+[32m+[m[32mimport org.springframework.context.ApplicationEvent;[m
+[32m+[m
+[32m+[m[32mimport com.example.nagoyameshi.entity.User;[m
+[32m+[m
+[32m+[m[32mimport lombok.Getter;[m
+[32m+[m
+[32m+[m[32m@Getter[m
+[32m+[m[32mpublic class SignupEvent extends ApplicationEvent {[m
+[32m+[m	[32mprivate User user;[m
+[32m+[m	[32mprivate String requestUrl;[m
+[32m+[m
+[32m+[m	[32mpublic SignupEvent(Object source, User user, String requestUrl) {[m
+[32m+[m		[32msuper(source);[m
+[32m+[m
+[32m+[m		[32mthis.user = user;[m
+[32m+[m		[32mthis.requestUrl = requestUrl;[m
+[32m+[m	[32m}[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/src/main/java/com/example/nagoyameshi/event/SignupEventListener.java b/src/main/java/com/example/nagoyameshi/event/SignupEventListener.java[m
+[1mnew file mode 100644[m
+[1mindex 0000000..083a4f3[m
+[1m--- /dev/null[m
+[1m+++ b/src/main/java/com/example/nagoyameshi/event/SignupEventListener.java[m
+[36m@@ -0,0 +1,42 @@[m
+[32m+[m[32mpackage com.example.nagoyameshi.event;[m
+[32m+[m
+[32m+[m[32mimport java.util.UUID;[m
+[32m+[m
+[32m+[m[32mimport org.springframework.context.event.EventListener;[m
+[32m+[m[32mimport org.springframework.mail.SimpleMailMessage;[m
+[32m+[m[32mimport org.springframework.mail.javamail.JavaMailSender;[m
+[32m+[m[32mimport org.springframework.stereotype.Component;[m
+[32m+[m
+[32m+[m[32mimport com.example.nagoyameshi.entity.User;[m
+[32m+[m[32mimport com.example.nagoyameshi.service.VerificationTokenService;[m
+[32m+[m
+[32m+[m[32m@Component[m
+[32m+[m[32mpublic class SignupEventListener {[m
+[32m+[m	[32mprivate final VerificationTokenService verificationTokenService;[m
+[32m+[m	[32mprivate final JavaMailSender javaMailSender;[m
+[32m+[m
+[32m+[m	[32mpublic SignupEventListener(VerificationTokenService verificationTokenService, JavaMailSender mailSender) {[m
+[32m+[m		[32mthis.verificationTokenService = verificationTokenService;[m
+[32m+[m		[32mthis.javaMailSender = mailSender;[m
+[32m+[m	[32m}[m
+[32m+[m
+[32m+[m	[32m@EventListener[m
+[32m+[m	[32mprivate void onSignupEvent(SignupEvent signupEvent) {[m
+[32m+[m		[32mUser user = signupEvent.getUser();[m
+[32m+[m		[32mString token = UUID.randomUUID().toString();[m
+[32m+[m		[32mverificationTokenService.createVerificationToken(user, token);[m
+[32m+[m
+[32m+[m		[32mString senderAddress = "springboot.samuraitravel@example.com";[m
+[32m+[m		[32mString recipientAddress = user.getEmail();[m
+[32m+[m		[32mString subject = "メール認証";[m
+[32m+[m		[32mString confirmationUrl = signupEvent.getRequestUrl() + "/verify?token=" + token;[m
+[32m+[m		[32mString message = "以下のリンクをクリックして会員登録を完了してください。";[m
+[32m+[m
+[32m+[m		[32mSimpleMailMessage mailMessage = new SimpleMailMessage();[m
+[32m+[m		[32mmailMessage.setFrom(senderAddress);[m
+[32m+[m		[32mmailMessage.setTo(recipientAddress);[m
+[32m+[m		[32mmailMessage.setSubject(subject);[m
+[32m+[m		[32mmailMessage.setText(message + "\n" + confirmationUrl);[m
+[32m+[m		[32mjavaMailSender.send(mailMessage);[m
+[32m+[m	[32m}[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/src/main/java/com/example/nagoyameshi/event/SignupEventPublisher.java b/src/main/java/com/example/nagoyameshi/event/SignupEventPublisher.java[m
+[1mnew file mode 100644[m
+[1mindex 0000000..3e741b1[m
+[1m--- /dev/null[m
+[1m+++ b/src/main/java/com/example/nagoyameshi/event/SignupEventPublisher.java[m
+[36m@@ -0,0 +1,19 @@[m
+[32m+[m[32mpackage com.example.nagoyameshi.event;[m
+[32m+[m
+[32m+[m[32mimport org.springframework.context.ApplicationEventPublisher;[m
+[32m+[m[32mimport org.springframework.stereotype.Component;[m
+[32m+[m
+[32m+[m[32mimport com.example.nagoyameshi.entity.User;[m
+[32m+[m
+[32m+[m[32m@Component[m
+[32m+[m[32mpublic class SignupEventPublisher {[m
+[32m+[m	[32mprivate final ApplicationEventPublisher applicationEventPublisher;[m
+[32m+[m
+[32m+[m	[32mpublic SignupEventPublisher(ApplicationEventPublisher applicationEventPublisher) {[m
+[32m+[m		[32mthis.applicationEventPublisher = applicationEventPublisher;[m
+[32m+[m	[32m}[m
+[32m+[m
+[32m+[m	[32mpublic void publishSignupEvent(User user, String requestUrl) {[m
+[32m+[m		[32mapplicationEventPublisher.publishEvent(new SignupEvent(this, user, requestUrl));[m
+[32m+[m	[32m}[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/src/main/java/com/example/nagoyameshi/repository/VerificationTokenRepository.java b/src/main/java/com/example/nagoyameshi/repository/VerificationTokenRepository.java[m
+[1mnew file mode 100644[m
+[1mindex 0000000..e5e87cf[m
+[1m--- /dev/null[m
+[1m+++ b/src/main/java/com/example/nagoyameshi/repository/VerificationTokenRepository.java[m
+[36m@@ -0,0 +1,9 @@[m
+[32m+[m[32mpackage com.example.nagoyameshi.repository;[m
+[32m+[m
+[32m+[m[32mimport org.springframework.data.jpa.repository.JpaRepository;[m
+[32m+[m
+[32m+[m[32mimport com.example.nagoyameshi.entity.VerificationToken;[m
+[32m+[m
+[32m+[m[32mpublic interface VerificationTokenRepository extends JpaRepository<VerificationToken, Integer> {[m
+[32m+[m	[32mpublic VerificationToken findByToken(String token);[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/src/main/java/com/example/nagoyameshi/service/UserService.java b/src/main/java/com/example/nagoyameshi/service/UserService.java[m
+[1mindex a59225e..c37158c 100644[m
+[1m--- a/src/main/java/com/example/nagoyameshi/service/UserService.java[m
+[1m+++ b/src/main/java/com/example/nagoyameshi/service/UserService.java[m
+[36m@@ -51,7 +51,7 @@[m [mpublic class UserService {[m
+ 		user.setEmail(signupForm.getEmail());[m
+ 		user.setPassword(passwordEncoder.encode(signupForm.getPassword()));[m
+ 		user.setRole(role);[m
+[31m-		user.setEnabled(true);[m
+[32m+[m		[32muser.setEnabled(false);[m
+ [m
+ 		return userRepository.save(user);[m
+ 	}[m
+[36m@@ -66,4 +66,11 @@[m [mpublic class UserService {[m
+ 	public boolean isSamePassword(String password, String passwordConfirmation) {[m
+ 		return password.equals(passwordConfirmation);[m
+ 	}[m
+[32m+[m
+[32m+[m	[32m// ユーザーを有効にする[m
+[32m+[m	[32m@Transactional[m
+[32m+[m	[32mpublic void enableUser(User user) {[m
+[32m+[m		[32muser.setEnabled(true);[m
+[32m+[m		[32muserRepository.save(user);[m
+[32m+[m	[32m}[m
+ }[m
+\ No newline at end of file[m
+[1mdiff --git a/src/main/java/com/example/nagoyameshi/service/VerificationTokenService.java b/src/main/java/com/example/nagoyameshi/service/VerificationTokenService.java[m
+[1mnew file mode 100644[m
+[1mindex 0000000..99e80db[m
+[1m--- /dev/null[m
+[1m+++ b/src/main/java/com/example/nagoyameshi/service/VerificationTokenService.java[m
+[36m@@ -0,0 +1,32 @@[m
+[32m+[m[32mpackage com.example.nagoyameshi.service;[m
+[32m+[m
+[32m+[m[32mimport org.springframework.stereotype.Service;[m
+[32m+[m[32mimport org.springframework.transaction.annotation.Transactional;[m
+[32m+[m
+[32m+[m[32mimport com.example.nagoyameshi.entity.User;[m
+[32m+[m[32mimport com.example.nagoyameshi.entity.VerificationToken;[m
+[32m+[m[32mimport com.example.nagoyameshi.repository.VerificationTokenRepository;[m
+[32m+[m
+[32m+[m[32m@Service[m
+[32m+[m[32mpublic class VerificationTokenService {[m
+[32m+[m	[32mprivate final VerificationTokenRepository verificationTokenRepository;[m
+[32m+[m
+[32m+[m	[32mpublic VerificationTokenService(VerificationTokenRepository verificationTokenRepository) {[m
+[32m+[m		[32mthis.verificationTokenRepository = verificationTokenRepository;[m
+[32m+[m	[32m}[m
+[32m+[m
+[32m+[m	[32m@Transactional[m
+[32m+[m	[32mpublic void createVerificationToken(User user, String token) {[m
+[32m+[m		[32mVerificationToken verificationToken = new VerificationToken();[m
+[32m+[m
+[32m+[m		[32mverificationToken.setUser(user);[m
+[32m+[m		[32mverificationToken.setToken(token);[m
+[32m+[m
+[32m+[m		[32mverificationTokenRepository.save(verificationToken);[m
+[32m+[m	[32m}[m
+[32m+[m
+[32m+[m	[32m// トークンの文字列で検索した結果を返す[m
+[32m+[m	[32mpublic VerificationToken findVerificationTokenByToken(String token) {[m
+[32m+[m		[32mreturn verificationTokenRepository.findByToken(token);[m
+[32m+[m	[32m}[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/src/main/resources/application.properties b/src/main/resources/application.properties[m
+[1mindex d4b93fb..081b366 100644[m
+[1m--- a/src/main/resources/application.properties[m
+[1m+++ b/src/main/resources/application.properties[m
+[36m@@ -4,4 +4,11 @@[m [mspring.datasource.url=jdbc:mysql://${MYSQL_HOST:localhost}:3306/springboot_nagoy[m
+ spring.datasource.username=root[m
+ spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver[m
+ spring.sql.init.encoding=utf-8[m
+[31m-spring.sql.init.mode=always[m
+\ No newline at end of file[m
+[32m+[m[32mspring.sql.init.mode=always[m
+[32m+[m
+[32m+[m[32mspring.mail.host=sandbox.smtp.mailtrap.io[m
+[32m+[m[32mspring.mail.port=2525[m
+[32m+[m[32mspring.mail.username=419ed182be45a5[m
+[32m+[m[32mspring.mail.password=1b8b64029c5407[m
+[32m+[m[32mspring.mail.properties.mail.smtp.auth=true[m
+[32m+[m[32mspring.mail.properties.mail.smtp.starttls.enable=true[m
+\ No newline at end of file[m
+[1mdiff --git a/src/main/resources/schema.sql b/src/main/resources/schema.sql[m
+[1mindex 2b10c45..8021bea 100644[m
+[1m--- a/src/main/resources/schema.sql[m
+[1m+++ b/src/main/resources/schema.sql[m
+[36m@@ -20,4 +20,13 @@[m [mCREATE TABLE IF NOT EXISTS users ([m
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,[m
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,[m
+    FOREIGN KEY (role_id) REFERENCES roles (id)[m
+[32m+[m[32m);[m
+[32m+[m
+[32m+[m[32mCREATE TABLE IF NOT EXISTS verification_tokens ([m
+[32m+[m[32m    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,[m
+[32m+[m[32m    user_id INT NOT NULL UNIQUE,[m
+[32m+[m[32m    token VARCHAR(255) NOT NULL,[m
+[32m+[m[32m    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,[m
+[32m+[m[32m    updated_at DATETIME NOT NULL DEFAULT CURRE
